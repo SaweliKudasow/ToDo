@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ToDo — sign in & tasks</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <h1 class="logo">ToDo</h1>
+        <div id="userBar" class="user-bar hidden">
+          <span id="userName" class="user-name"></span>
+          <button type="button" id="logoutBtn" class="btn btn-ghost">Log out</button>
+        </div>
+      </header>
+
+      <p id="flash" class="flash hidden" role="status"></p>
+
+      <section id="authSection" class="card">
+        <div class="tabs">
+          <button type="button" class="tab active" data-tab="login">Sign in</button>
+          <button type="button" class="tab" data-tab="register">Register</button>
+        </div>
+
+        <form id="loginForm" class="form tab-panel" data-panel="login">
+          <label class="field">
+            <span>Username</span>
+            <input name="username" autocomplete="username" required />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit" class="btn btn-primary">Sign in</button>
+        </form>
+
+        <form id="registerForm" class="form tab-panel hidden" data-panel="register">
+          <label class="field">
+            <span>Username</span>
+            <input name="username" autocomplete="username" required />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input name="password" type="password" autocomplete="new-password" required minlength="4" />
+          </label>
+          <button type="submit" class="btn btn-primary">Create account</button>
+        </form>
+      </section>
+
+      <section id="todoSection" class="hidden">
+        <div class="card todo-card">
+          <h2 class="section-title">My tasks</h2>
+          <p class="section-hint">
+            Tasks are stored in MySQL and tied to your account; other users cannot see them.
+          </p>
+          <form id="addTodoForm" class="add-row">
+            <input
+              id="todoTitle"
+              name="title"
+              type="text"
+              placeholder="New task…"
+              maxlength="500"
+              required
+            />
+            <button type="submit" class="btn btn-primary">Add</button>
+          </form>
+          <ul id="todoList" class="todo-list"></ul>
+          <p id="todoEmpty" class="empty-hint hidden">No tasks yet — add one above.</p>
+        </div>
+      </section>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>
