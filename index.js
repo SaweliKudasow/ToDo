@@ -1,3 +1,4 @@
+require('dotenv').config();
 const path = require('path');
 const express = require('express');
 const mysql = require('mysql2/promise');
@@ -7,13 +8,13 @@ const jwt = require('jsonwebtoken');
 const app = express();
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secretkey';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'auth_demo'
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME
 });
 
 function todoDbError(res, err) {
@@ -141,4 +142,4 @@ app.delete('/todos/:id', auth, async (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.listen(3000, () => console.log('Server running on port 3000'));
+app.listen(8080, () => console.log('Server running on port 8080'));
