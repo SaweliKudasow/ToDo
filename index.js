@@ -1,4 +1,7 @@
 require('dotenv').config();
+const fs = require('fs');
+const http = require('http');
+const https = require('https');
 const path = require('path');
 const express = require('express');
 const mysql = require('mysql2/promise');
@@ -141,5 +144,13 @@ app.delete('/todos/:id', auth, async (req, res) => {
   }
 });
 
+const certPath = path.join(__dirname, '..', 'Proxy', 'certs');
+const options = {
+  key: fs.readFileSync(path.join(certPath, 'privkey.pem')),
+  cert: fs.readFileSync(path.join(certPath, 'fullchain.pem'))
+};
+
 app.use(express.static(path.join(__dirname, 'public')));
-app.listen(8080, () => console.log('Server running on port 8080'));
+
+http.createServer(app).listen(8080, () => console.log('HTTP http://localhost:8080'));
+https.createServer(options, app).listen(8443, () => console.log('HTTPS https://localhost:8443'));
