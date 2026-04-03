@@ -1,52 +1,124 @@
 const TOKEN = 'todo_token';
+const API_BASE = window.location.pathname.startsWith('/todo') ? '/todo' : '';
 
-const $ = (s) => document.querySelector(s);
-const flashEl = $('#flash');
-const authEl = $('#authSection');
-const todoEl = $('#todoSection');
-const userBar = $('#userBar');
+const $ = (sel) => document.querySelector(sel);
+
+const ui = {
+  flash: $('#flash'),
+  auth: $('#authSection'),
+  todos: $('#todoSection'),
+  userBar: $('#userBar'),
+  list: $('#todoList'),
+  empty: $('#todoEmpty')
+};
 
 function flash(msg, cls) {
-  if (!flashEl) return;
   const text = msg == null ? '' : String(msg);
-  flashEl.textContent = text;
-  flashEl.className = 'flash' + (cls ? ` ${cls}` : '');
-  flashEl.classList.toggle('hidden', text.length === 0);
+  ui.flash.textContent = text;
+  ui.flash.className = 'flash' + (cls ? ` ${cls}` : '');
+  ui.flash.classList.toggle('hidden', text.length === 0);
 }
 
-async function api(path, { method = 'GET', body } = {}) {
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Single entry for all API calls: JSON parsing + network error handling */
+async function api(method, path, body) {
   const headers = {};
-  if (body != null) headers['Content-Type'] = 'application/json';
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
   const t = localStorage.getItem(TOKEN);
   if (t) headers.Authorization = `Bearer ${t}`;
-  const res = await fetch(path, { method, headers, body: body != null ? JSON.stringify(body) : undefined });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined
+    });
+  } catch {
+    return { ok: false, status: 0, data: {}, networkError: true };
+  }
   let data = {};
   try {
     data = JSON.parse(await res.text());
   } catch {
-    /* empty body */
+    /* empty response body */
   }
-  return { res, data };
+  return { ok: res.ok, status: res.status, data, networkError: false };
 }
 
-function showAuth() {
-  authEl.classList.remove('hidden');
-  todoEl.classList.add('hidden');
-  userBar.classList.add('hidden');
-}
-
-function showApp(name) {
-  authEl.classList.add('hidden');
-  todoEl.classList.remove('hidden');
-  userBar.classList.remove('hidden');
-  $('#userName').textContent = name || '';
-}
-
-function session(token) {
+function setSession(token) {
   if (token) localStorage.setItem(TOKEN, token);
   else localStorage.removeItem(TOKEN);
 }
 
+function showAuth() {
+  ui.auth.classList.remove('hidden');
+  ui.todos.classList.add('hidden');
+  ui.userBar.classList.add('hidden');
+}
+
+function showApp(username) {
+  ui.auth.classList.add('hidden');
+  ui.todos.classList.remove('hidden');
+  ui.userBar.classList.remove('hidden');
+  $('#userName').textContent = username || '';
+}
+
+function creds(form) {
+  const fd = new FormData(form);
+  return {
+    username: String(fd.get('username') || '').trim(),
+    password: String(fd.get('password') || '')
+  };
+}
+
+const isDone = (v) => v === true || v === 1 || v === '1';
+
+function renderTodos(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  ui.empty.classList.toggle('hidden', list.length > 0);
+  ui.list.innerHTML = list
+    .map(
+      (t) => `
+    <li class="todo-item${isDone(t.done) ? ' done' : ''}" data-id="${t.id}">
+      <input type="checkbox" data-done="${t.id}" ${isDone(t.done) ? 'checked' : ''} />
+      <span class="todo-title">${escapeHtml(t.title)}</span>
+      <button type="button" class="btn btn-danger" data-del="${t.id}">Delete</button>
+    </li>`
+    )
+    .join('');
+}
+
+async function loadTodos() {
+  const r = await api('GET', '/todos');
+  if (r.networkError) return flash('Cannot reach the server', 'error');
+  if (r.status === 401 || r.status === 403) {
+    setSession(null);
+    showAuth();
+    return flash('Session expired — please sign in again.', 'error');
+  }
+  if (!r.ok) return flash(r.data.error || 'Could not load tasks', 'error');
+  renderTodos(r.data.todos || []);
+}
+
+async function initSession() {
+  const tokenAtStart = localStorage.getItem(TOKEN);
+  if (!tokenAtStart) return showAuth();
+  const r = await api('GET', '/me');
+  if (localStorage.getItem(TOKEN) !== tokenAtStart) return;
+  if (!r.ok) {
+    setSession(null);
+    showAuth();
+    if (r.status === 401 || r.status === 403) flash('Please sign in again.', 'error');
+    return;
+  }
+  showApp(r.data.user?.username);
+  await loadTodos();
+}
+
+// --- Sign in / Register tabs ---
 document.querySelectorAll('.tab').forEach((btn) => {
   btn.addEventListener('click', () => {
     const tab = btn.dataset.tab;
@@ -59,135 +131,70 @@ document.querySelectorAll('.tab').forEach((btn) => {
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   flash('');
-  try {
-    const fd = new FormData(e.target);
-    const { res, data } = await api('/login', {
-      method: 'POST',
-      body: { username: String(fd.get('username') || '').trim(), password: String(fd.get('password') || '') }
-    });
-    if (!res.ok) return flash(data.error || 'Could not sign in', 'error');
-    if (!data.token) return flash('Server did not return a token', 'error');
-    session(data.token);
-    showApp(data.user?.username);
-    e.target.reset();
-    await loadTodos();
-  } catch {
-    flash('Cannot reach the server', 'error');
-  }
+  const r = await api('POST', '/login', creds(e.target));
+  if (r.networkError) return flash('Cannot reach the server', 'error');
+  if (!r.ok) return flash(r.data.error || 'Could not sign in', 'error');
+  if (!r.data.token) return flash('Server did not return a token', 'error');
+  setSession(r.data.token);
+  showApp(r.data.user?.username);
+  e.target.reset();
+  await loadTodos();
 });
 
 $('#registerForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   flash('');
-  const fd = new FormData(e.target);
-  const creds = {
-    username: String(fd.get('username') || '').trim(),
-    password: String(fd.get('password') || '')
-  };
-  let { res, data } = await api('/register', { method: 'POST', body: creds });
-  if (!res.ok) return flash(data.error || 'Registration failed', 'error');
-  ({ res, data } = await api('/login', { method: 'POST', body: creds }));
-  if (!res.ok) {
+  const body = creds(e.target);
+  let r = await api('POST', '/register', body);
+  if (r.networkError) return flash('Cannot reach the server', 'error');
+  if (!r.ok) return flash(r.data.error || 'Registration failed', 'error');
+  r = await api('POST', '/login', body);
+  if (!r.ok) {
     flash('Account created. Please sign in.', 'success');
     document.querySelector('.tab[data-tab="login"]')?.click();
     return;
   }
-  session(data.token);
-  showApp(data.user?.username);
+  setSession(r.data.token);
+  showApp(r.data.user?.username);
   e.target.reset();
   await loadTodos();
 });
 
 $('#logoutBtn').addEventListener('click', () => {
-  session(null);
+  setSession(null);
   showAuth();
-  $('#todoList').innerHTML = '';
+  ui.list.innerHTML = '';
   flash('');
 });
-
-const done = (v) => v === true || v === 1 || v === '1';
-
-function renderTodos(todos) {
-  const rows = Array.isArray(todos) ? todos : [];
-  const list = $('#todoList');
-  const empty = $('#todoEmpty');
-  list.innerHTML = '';
-  empty.classList.toggle('hidden', rows.length > 0);
-  for (const t of rows) {
-    const d = done(t.done);
-    const li = document.createElement('li');
-    li.className = 'todo-item' + (d ? ' done' : '');
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = d;
-    cb.onchange = () => patchTodo(t.id, cb.checked);
-    const span = document.createElement('span');
-    span.className = 'todo-title';
-    span.textContent = t.title;
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'btn btn-danger';
-    del.textContent = 'Delete';
-    del.onclick = () => removeTodo(t.id);
-    li.append(cb, span, del);
-    list.appendChild(li);
-  }
-}
-
-async function loadTodos() {
-  const { res, data } = await api('/todos');
-  if (res.status === 401 || res.status === 403) {
-    session(null);
-    showAuth();
-    return flash('Session expired — please sign in again.', 'error');
-  }
-  if (!res.ok) return flash(data.error || 'Could not load tasks', 'error');
-  renderTodos(data.todos || []);
-}
-
-async function patchTodo(id, isDone) {
-  const { res, data } = await api(`/todos/${id}`, { method: 'PATCH', body: { done: isDone } });
-  if (!res.ok) {
-    flash(data.error || 'Could not update task', 'error');
-  }
-  await loadTodos();
-}
-
-async function removeTodo(id) {
-  if (!confirm('Delete this task from the database?')) return;
-  const { res, data } = await api(`/todos/${id}`, { method: 'DELETE' });
-  if (!res.ok) return flash(data.error || 'Could not delete task', 'error');
-  await loadTodos();
-}
 
 $('#addTodoForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   flash('');
   const title = String(new FormData(e.target).get('title') || '').trim();
   if (!title) return;
-  const { res, data } = await api('/todos', { method: 'POST', body: { title } });
-  if (!res.ok) return flash(data.error || 'Could not add task', 'error');
+  const r = await api('POST', '/todos', { title });
+  if (r.networkError) return flash('Cannot reach the server', 'error');
+  if (!r.ok) return flash(r.data.error || 'Could not add task', 'error');
   e.target.reset();
   await loadTodos();
 });
 
-// On reload: restore session from token.
-// After await, compare token to the one at start — otherwise a stale /me response
-// can finish after a new login and clear the new session.
-async function initSession() {
-  const tokenAtStart = localStorage.getItem(TOKEN);
-  if (!tokenAtStart) return showAuth();
-  const { res, data } = await api('/me');
-  if (localStorage.getItem(TOKEN) !== tokenAtStart) return;
-  if (!res.ok) {
-    session(null);
-    showAuth();
-    if (res.status === 401 || res.status === 403) flash('Please sign in again.', 'error');
-    return;
-  }
-  const u = data.user && data.user.username;
-  showApp(u);
+// Event delegation on the list: checkbox + delete button
+ui.list.addEventListener('change', async (e) => {
+  const id = e.target.dataset.done;
+  if (!id || e.target.type !== 'checkbox') return;
+  const r = await api('PATCH', `/todos/${id}`, { done: e.target.checked });
+  if (!r.ok) flash(r.data.error || 'Could not update task', 'error');
   await loadTodos();
-}
+});
+
+ui.list.addEventListener('click', async (e) => {
+  const id = e.target.closest('[data-del]')?.dataset.del;
+  if (!id) return;
+  if (!confirm('Delete this task from the database?')) return;
+  const r = await api('DELETE', `/todos/${id}`);
+  if (!r.ok) return flash(r.data.error || 'Could not delete task', 'error');
+  await loadTodos();
+});
 
 initSession();

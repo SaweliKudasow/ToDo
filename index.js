@@ -1,8 +1,6 @@
-require('dotenv').config();
-const fs = require('fs');
-const http = require('http');
-const https = require('https');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 const express = require('express');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
@@ -40,14 +38,26 @@ function auth(req, res, next) {
   }
 }
 
+function readCredentials(req) {
+  const username = String(req.body?.username || '').trim();
+  const password = req.body?.password;
+  if (!username || !password) return null;
+  return { username, password };
+}
+
+function parseTodoId(req) {
+  const id = +req.params.id;
+  return Number.isInteger(id) && id >= 1 ? id : null;
+}
+
+// --- Auth: no path prefix; the client calls /login, /register, /me ---
 app.post('/register', async (req, res) => {
-  const username = String(req.body.username || '').trim();
-  const { password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  const creds = readCredentials(req);
+  if (!creds) return res.status(400).json({ error: 'Username and password required' });
   try {
     await pool.query('INSERT INTO users (username, password) VALUES (?, ?)', [
-      username,
-      await bcrypt.hash(password, 10)
+      creds.username,
+      await bcrypt.hash(creds.password, 10)
     ]);
     res.status(201).json({ message: 'User created' });
   } catch (e) {
@@ -57,20 +67,20 @@ app.post('/register', async (req, res) => {
 });
 
 app.post('/login', async (req, res) => {
-  const username = String(req.body.username || '').trim();
-  const { password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  const creds = readCredentials(req);
+  if (!creds) return res.status(400).json({ error: 'Username and password required' });
   try {
-    const [rows] = await pool.query('SELECT id, username, password FROM users WHERE username = ?', [username]);
+    const [rows] = await pool.query('SELECT id, username, password FROM users WHERE username = ?', [creds.username]);
     const user = rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    if (!user || !(await bcrypt.compare(creds.password, user.password))) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
     res.json({
       token: jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '8h' }),
       user: { id: user.id, username: user.username }
     });
-  } catch {
+  } catch (e) {
+    console.error('Login DB error:', e);
     res.status(500).json({ error: 'Database error' });
   }
 });
@@ -85,20 +95,24 @@ app.get('/me', auth, async (req, res) => {
   }
 });
 
-app.get('/todos', auth, async (req, res) => {
+// --- Tasks: one Router; auth runs once for all /todos/* routes ---
+const todos = express.Router();
+todos.use(auth);
+
+todos.get('/', async (req, res) => {
   try {
-    const [todos] = await pool.query(
+    const [rows] = await pool.query(
       'SELECT id, title, done FROM todos WHERE user_id = ? ORDER BY id DESC',
       [req.userId]
     );
-    res.json({ todos });
+    res.json({ todos: rows });
   } catch (e) {
     todoDbError(res, e);
   }
 });
 
-app.post('/todos', auth, async (req, res) => {
-  const title = String(req.body.title || '').trim();
+todos.post('/', async (req, res) => {
+  const title = String(req.body?.title || '').trim();
   if (!title) return res.status(400).json({ error: 'Title required' });
   try {
     const [r] = await pool.query('INSERT INTO todos (user_id, title) VALUES (?, ?)', [req.userId, title]);
@@ -108,9 +122,9 @@ app.post('/todos', auth, async (req, res) => {
   }
 });
 
-app.patch('/todos/:id', auth, async (req, res) => {
-  const id = +req.params.id;
-  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid id' });
+todos.patch('/:id', async (req, res) => {
+  const id = parseTodoId(req);
+  if (id == null) return res.status(400).json({ error: 'Invalid id' });
   const { done, title } = req.body;
   let sql;
   let params;
@@ -132,9 +146,9 @@ app.patch('/todos/:id', auth, async (req, res) => {
   }
 });
 
-app.delete('/todos/:id', auth, async (req, res) => {
-  const id = +req.params.id;
-  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid id' });
+todos.delete('/:id', async (req, res) => {
+  const id = parseTodoId(req);
+  if (id == null) return res.status(400).json({ error: 'Invalid id' });
   try {
     const [r] = await pool.query('DELETE FROM todos WHERE id = ? AND user_id = ?', [id, req.userId]);
     if (!r.affectedRows) return res.status(404).json({ error: 'Task not found' });
@@ -144,13 +158,8 @@ app.delete('/todos/:id', auth, async (req, res) => {
   }
 });
 
-const certPath = path.join(__dirname, '..', 'Proxy', 'certs');
-const options = {
-  key: fs.readFileSync(path.join(certPath, 'privkey.pem')),
-  cert: fs.readFileSync(path.join(certPath, 'fullchain.pem'))
-};
+app.use('/todos', todos);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-http.createServer(app).listen(8080, () => console.log('HTTP http://localhost:8080'));
-https.createServer(options, app).listen(8443, () => console.log('HTTPS https://localhost:8443'));
+module.exports = app;
