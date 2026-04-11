@@ -1,14 +1,16 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap");
 
 :root {
-  --bg: #0f1419;
-  --surface: #1a2332;
-  --border: #2d3a4d;
-  --text: #e8edf4;
-  --muted: #8b9cb3;
-  --accent: #5b8def;
-  --accent-hover: #7aa3f5;
-  --danger: #e85d6c;
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-elevated: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #f5f0e6;
+  --muted: #9a9487;
+  --accent: #e6b800;
+  --accent-hover: #f5c518;
+  --accent-muted: rgba(230, 184, 0, 0.15);
+  --danger: #c45c5c;
   --radius: 12px;
   --font: "DM Sans", system-ui, -apple-system, sans-serif;
   color-scheme: dark;
@@ -40,15 +42,13 @@ body {
 body::before {
   content: "";
   position: fixed;
-  inset: -35% -20%;
+  inset: 0;
   z-index: -2;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 55% 45% at 15% 25%, rgba(91, 141, 239, 0.22), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 85% 20%, rgba(122, 163, 245, 0.12), transparent 50%),
-    radial-gradient(ellipse 70% 55% at 70% 85%, rgba(91, 141, 239, 0.08), transparent 55%),
-    radial-gradient(ellipse 45% 50% at 10% 80%, rgba(139, 92, 246, 0.1), transparent 50%),
-    radial-gradient(ellipse 100% 80% at 50% -10%, #1a2d4a 0%, transparent 55%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(230, 184, 0, 0.07), transparent 50%),
+    radial-gradient(ellipse 40% 35% at 0% 100%, rgba(245, 197, 24, 0.05), transparent 45%),
+    radial-gradient(ellipse 40% 35% at 100% 100%, rgba(245, 197, 24, 0.05), transparent 45%),
     var(--bg);
   background-color: var(--bg);
   animation: bg-drift 22s ease-in-out infinite alternate;
@@ -60,13 +60,10 @@ body::after {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  opacity: 0.35;
-  background-image: radial-gradient(
-      circle at 20% 30%,
-      rgba(255, 255, 255, 0.04) 0%,
-      transparent 40%
-    ),
-    radial-gradient(circle at 80% 60%, rgba(255, 255, 255, 0.03) 0%, transparent 35%);
+  opacity: 0.2;
+  background-image: radial-gradient(circle at 50% 100%,
+      rgba(255, 255, 255, 0.03) 0%,
+      transparent 45%);
   mix-blend-mode: overlay;
   animation: bg-shimmer 14s ease-in-out infinite alternate;
 }
@@ -75,9 +72,11 @@ body::after {
   0% {
     transform: translate(0, 0) scale(1) rotate(0deg);
   }
+
   50% {
     transform: translate(2%, 1.5%) scale(1.03) rotate(1.5deg);
   }
+
   100% {
     transform: translate(-2.5%, 2%) scale(1.06) rotate(-1deg);
   }
@@ -88,6 +87,7 @@ body::after {
     opacity: 0.25;
     transform: scale(1);
   }
+
   100% {
     opacity: 0.42;
     transform: scale(1.08);
@@ -95,6 +95,7 @@ body::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   body::before,
   body::after {
     animation: none;
@@ -130,6 +131,7 @@ body::after {
   font-size: 1.75rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+  color: var(--accent-hover);
 }
 
 .user-bar {
@@ -152,19 +154,19 @@ body::after {
   padding: 0.65rem 1rem;
   border-radius: var(--radius);
   font-size: 0.9rem;
-  background: rgba(26, 35, 50, 0.75);
+  background: rgba(20, 20, 20, 0.9);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border);
 }
 
 .flash.error {
-  border-color: rgba(232, 93, 108, 0.5);
-  color: #f5a5ad;
+  border-color: rgba(196, 92, 92, 0.55);
+  color: #e8a0a0;
 }
 
 .flash.success {
-  border-color: rgba(91, 141, 239, 0.45);
+  border-color: rgba(230, 184, 0, 0.45);
   color: var(--accent-hover);
 }
 
@@ -173,13 +175,13 @@ body::after {
 }
 
 .card {
-  background: rgba(26, 35, 50, 0.82);
+  background: rgba(20, 20, 20, 0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(45, 58, 77, 0.9);
+  border: 1px solid rgba(230, 184, 0, 0.12);
   border-radius: var(--radius);
   padding: 1.25rem 1.35rem;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
 }
 
 .tabs {
@@ -209,7 +211,7 @@ body::after {
 .tab.active {
   color: var(--text);
   border-color: var(--accent);
-  background: rgba(91, 141, 239, 0.12);
+  background: var(--accent-muted);
 }
 
 .form {
@@ -233,7 +235,7 @@ body::after {
   padding: 0.65rem 0.85rem;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--surface-elevated);
   color: var(--text);
   font-family: inherit;
   font-size: 1rem;
@@ -242,7 +244,7 @@ body::after {
 .field input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(91, 141, 239, 0.2);
+  box-shadow: 0 0 0 3px rgba(230, 184, 0, 0.18);
 }
 
 .btn {
@@ -261,12 +263,13 @@ body::after {
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: #fff;
+  background: linear-gradient(180deg, var(--accent-hover) 0%, var(--accent) 100%);
+  color: #0a0a0a;
 }
 
 .btn-primary:hover {
-  background: var(--accent-hover);
+  background: linear-gradient(180deg, #ffd54f 0%, var(--accent-hover) 100%);
+  color: #0a0a0a;
 }
 
 .btn-ghost {
@@ -321,7 +324,7 @@ body::after {
   padding: 0.65rem 0.85rem;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--surface-elevated);
   color: var(--text);
   font-family: inherit;
   font-size: 1rem;
@@ -330,6 +333,7 @@ body::after {
 .add-row input:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(230, 184, 0, 0.15);
 }
 
 .todo-list {
@@ -346,7 +350,7 @@ body::after {
   align-items: center;
   gap: 0.65rem;
   padding: 0.65rem 0.75rem;
-  background: var(--bg);
+  background: var(--surface-elevated);
   border: 1px solid var(--border);
   border-radius: 8px;
 }
